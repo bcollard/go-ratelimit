@@ -2,7 +2,6 @@ package ratelimit
 
 import (
 	"errors"
-	"strconv"
 
 	"github.com/gomodule/redigo/redis"
 )
@@ -40,27 +39,17 @@ func (rl *RateLimit) Run(key string) error {
 	conn.Send("INCR", key)
 	conn.Send("EXPIRE", key, rl.config.WindowInSeconds)
 
-	_, err := conn.Do("EXEC")
+	results, err := redis.Ints(conn.Do("EXEC"))
 	if err != nil {
 		return err
 	}
 
-	value, err := redis.String(conn.Do("GET", key))
-	if err != nil {
-		return err
-	}
-
-	result, err := strconv.Atoi(value)
-	if err != nil {
-		return err
-	}
-
+	result := results[0]
 	if result > rl.config.Attempts {
 		_, err := conn.Do("EXPIRE", key, rl.config.CooldownInSeconds)
 		if err != nil {
 			return err
 		}
-
 	}
 
 	return nil
